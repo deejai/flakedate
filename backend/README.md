@@ -1,0 +1,1 @@
+wonkiness with db. need to set permissions and owner on it manually. also need to do migrations manually or delete and re-run. will fix probly
