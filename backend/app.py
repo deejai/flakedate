@@ -68,14 +68,16 @@ def send_email(to_email, subject, message):
 def create_event():
     data = request.json
     try:
+        token1 = generate_unique_token()
+        token2 = generate_unique_token()
         new_event = Event(
             id=str(uuid.uuid4()),
             date=datetime.strptime(data['date'], '%Y-%m-%d').date(),
             description=data['description'],
             email1=data['email1'],
             email2=data['email2'],
-            token1=generate_unique_token(),
-            token2=generate_unique_token()
+            token1=token1,
+            token2=token2
         )
         db.session.add(new_event)
         db.session.commit()
@@ -104,8 +106,7 @@ def create_event():
 
         return jsonify({
             'eventId': new_event.id,
-            'secretLink1': f"/event/{new_event.token1}",
-            'secretLink2': f"/event/{new_event.token2}"
+            'userToken': token1  # Return the token for the creator
         }), 201
     except IntegrityError:
         db.session.rollback()
@@ -118,15 +119,12 @@ def check_status(token):
         return jsonify({'error': 'Event not found'}), 404
     
     is_user1 = token == event.token1
-    is_user2 = token == event.token2
     
     return jsonify({
         'flakeStatus': {
-            'user1': event.user1_flake,
-            'user2': event.user2_flake
+            'user1': event.user1_flake if is_user1 else event.user2_flake,
+            'user2': event.user2_flake if is_user1 else event.user1_flake
         },
-        'isUser1': is_user1,
-        'isUser2': is_user2,
         'eventDetails': {
             'date': event.date.isoformat(),
             'description': event.description

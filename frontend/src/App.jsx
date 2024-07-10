@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { AlertCircle, Check, X } from 'lucide-react';
 
 const API_URL = 'https://flakedate.com/api';
@@ -11,10 +11,18 @@ function FlakeDateApp() {
     email1: '',
     email2: '',
   });
-  const [eventId, setEventId] = useState(null);
+  const [eventToken, setEventToken] = useState(null);
   const [flakeStatus, setFlakeStatus] = useState({ user1: false, user2: false });
-  const [userEmail, setUserEmail] = useState('');
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem('flakeDateToken');
+    if (storedToken) {
+      setEventToken(storedToken);
+      setStep('status');
+      checkStatus(storedToken);
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -34,52 +42,52 @@ function FlakeDateApp() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      setEventId(data.eventId);
-      setStep('success');
-      console.log('Event created successfully:', data);
+      setEventToken(data.userToken);
+      localStorage.setItem('flakeDateToken', data.userToken);
+      setStep('status');
+      checkStatus(data.userToken);
     } catch (error) {
       console.error('Error creating event:', error);
       setError('Failed to create event. Please try again.');
     }
   }, [formData]);
 
-  const handleCheckStatus = useCallback(async (e) => {
-    e.preventDefault();
-    setError(null);
+  const checkStatus = useCallback(async (token) => {
     try {
-      const response = await fetch(`${API_URL}/events/${eventId}/status?email=${userEmail}`);
+      const response = await fetch(`${API_URL}/events/${token}/status`);
       if (!response.ok) {
+        if (response.status === 404) {
+          setError('Event not found. Please create a new event.');
+          setStep('create');
+          localStorage.removeItem('flakeDateToken');
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
       setFlakeStatus(data.flakeStatus);
-      setStep('status');
-      console.log('Status checked successfully:', data);
     } catch (error) {
       console.error('Error checking status:', error);
       setError('Failed to check status. Please try again.');
     }
-  }, [eventId, userEmail]);
+  }, []);
 
   const handleToggleFlake = useCallback(async () => {
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/events/${eventId}/toggle`, {
+      const response = await fetch(`${API_URL}/events/${eventToken}/toggle`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: userEmail }),
       });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
       setFlakeStatus(data.flakeStatus);
-      console.log('Flake status toggled successfully:', data);
     } catch (error) {
       console.error('Error toggling flake status:', error);
       setError('Failed to toggle flake status. Please try again.');
     }
-  }, [eventId, userEmail]);
+  }, [eventToken]);
 
   return (
     <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
@@ -132,38 +140,6 @@ function FlakeDateApp() {
           />
           <button type="submit" className="w-full p-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
             Create Event
-          </button>
-        </form>
-      )}
-
-      {step === 'success' && (
-        <div className="text-center">
-          <div className="flex items-center justify-center mb-4">
-            <AlertCircle className="text-indigo-600 mr-2" />
-            <h2 className="text-xl font-semibold">Event Created!</h2>
-          </div>
-          <p className="mb-4">Check your email for the event link.</p>
-          <button
-            onClick={() => setStep('check')}
-            className="w-full p-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-          >
-            Check Event Status
-          </button>
-        </div>
-      )}
-
-      {step === 'check' && (
-        <form onSubmit={handleCheckStatus} className="space-y-4">
-          <input
-            type="email"
-            value={userEmail}
-            onChange={(e) => setUserEmail(e.target.value)}
-            placeholder="Enter your email"
-            required
-            className="w-full p-2 border rounded"
-          />
-          <button type="submit" className="w-full p-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-            Check Status
           </button>
         </form>
       )}
