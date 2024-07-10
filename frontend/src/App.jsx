@@ -140,6 +140,7 @@ function FlakeDateApp() {
             type="email"
             name="email2"
             placeholder="Their email"
+            autoComplete="new-password"
             required
             className="w-full p-2 border rounded"
           />
