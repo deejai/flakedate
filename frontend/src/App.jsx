@@ -7,20 +7,14 @@ function FlakeDateApp() {
   const [eventData, setEventData] = useState(null);
   const [userFlaked, setUserFlaked] = useState(false);
   const [bothFlaked, setBothFlaked] = useState(false);
-  const [userEmail, setUserEmail] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedEmail = localStorage.getItem('flakeDateUserEmail');
-    if (storedEmail) {
-      setUserEmail(storedEmail);
-    }
-
     const path = window.location.pathname;
     const eventToken = path.split('/').pop();
     if (eventToken && eventToken !== 'event') {
-      checkStatus(eventToken, storedEmail);
+      checkStatus(eventToken);
     } else {
       setLoading(false);
     }
@@ -43,10 +37,8 @@ function FlakeDateApp() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      setUserEmail(eventDetails.email1);
-      localStorage.setItem('flakeDateUserEmail', eventDetails.email1);
       window.history.pushState({}, '', `/event/${data.eventToken}`);
-      checkStatus(data.eventToken, eventDetails.email1);
+      checkStatus(data.eventToken);
     } catch (error) {
       console.error('Error creating event:', error);
       setError('Failed to create event. Please try again.');
@@ -54,10 +46,10 @@ function FlakeDateApp() {
     }
   }, []);
 
-  const checkStatus = useCallback(async (token, email) => {
+  const checkStatus = useCallback(async (token) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/events/${token}/status?email=${email}`);
+      const response = await fetch(`${API_URL}/events/${token}/status`);
       if (!response.ok) {
         if (response.status === 404) {
           setError('Event not found. Please create a new event.');
@@ -86,7 +78,6 @@ function FlakeDateApp() {
       const response = await fetch(`${API_URL}/events/${token}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: userEmail }),
       });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -98,7 +89,7 @@ function FlakeDateApp() {
       console.error('Error toggling flake status:', error);
       setError('Failed to update status. Please try again.');
     }
-  }, [userEmail]);
+  }, []);
 
   if (loading) {
     return <div>Loading...</div>;
