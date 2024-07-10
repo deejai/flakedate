@@ -4,67 +4,50 @@ import { AlertCircle, Check, X } from 'lucide-react';
 const API_URL = 'https://flakedate.com/api';
 
 function FlakeDateApp() {
-  const [step, setStep] = useState('create');
-  const [formData, setFormData] = useState({
-    date: '',
-    description: '',
-    email1: '',
-    email2: '',
-  });
-  const [eventToken, setEventToken] = useState(null);
+  const [eventData, setEventData] = useState(null);
   const [flakeStatus, setFlakeStatus] = useState({ user1: false, user2: false });
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('flakeDateToken');
-    if (storedToken) {
-      setEventToken(storedToken);
-      setStep('status');
-      checkStatus(storedToken);
+    const path = window.location.pathname;
+    const eventToken = path.split('/').pop();
+    if (eventToken) {
+      checkStatus(eventToken);
     }
   }, []);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prevData => ({ ...prevData, [name]: value }));
-  };
-
-  const handleCreateEvent = useCallback(async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     setError(null);
+    const formData = new FormData(e.target);
+    const eventDetails = Object.fromEntries(formData.entries());
+
     try {
       const response = await fetch(`${API_URL}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(eventDetails),
       });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      setEventToken(data.userToken);
-      localStorage.setItem('flakeDateToken', data.userToken);
-      setStep('status');
-      checkStatus(data.userToken);
+      window.history.pushState({}, '', `/event/${data.eventToken}`);
+      checkStatus(data.eventToken);
     } catch (error) {
       console.error('Error creating event:', error);
       setError('Failed to create event. Please try again.');
     }
-  }, [formData]);
+  }, []);
 
   const checkStatus = useCallback(async (token) => {
     try {
       const response = await fetch(`${API_URL}/events/${token}/status`);
       if (!response.ok) {
-        if (response.status === 404) {
-          setError('Event not found. Please create a new event.');
-          setStep('create');
-          localStorage.removeItem('flakeDateToken');
-          return;
-        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
+      setEventData(data.eventDetails);
       setFlakeStatus(data.flakeStatus);
     } catch (error) {
       console.error('Error checking status:', error);
@@ -73,9 +56,10 @@ function FlakeDateApp() {
   }, []);
 
   const handleToggleFlake = useCallback(async () => {
+    const token = window.location.pathname.split('/').pop();
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/events/${eventToken}/toggle`, {
+      const response = await fetch(`${API_URL}/events/${token}/toggle`, {
         method: 'POST',
       });
       if (!response.ok) {
@@ -87,7 +71,7 @@ function FlakeDateApp() {
       console.error('Error toggling flake status:', error);
       setError('Failed to toggle flake status. Please try again.');
     }
-  }, [eventToken]);
+  }, []);
 
   return (
     <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
@@ -100,30 +84,23 @@ function FlakeDateApp() {
         </div>
       )}
 
-      {step === 'create' && (
-        <form onSubmit={handleCreateEvent} className="space-y-4">
+      {!eventData ? (
+        <form onSubmit={handleSubmit} className="space-y-4">
           <input
             type="date"
             name="date"
-            value={formData.date}
-            onChange={handleChange}
             required
             className="w-full p-2 border rounded"
           />
           <textarea
             name="description"
-            value={formData.description}
-            onChange={handleChange}
             placeholder="Event description"
             required
             className="w-full p-2 border rounded"
-            autoComplete="off"
           />
           <input
             type="email"
             name="email1"
-            value={formData.email1}
-            onChange={handleChange}
             placeholder="Your email"
             required
             className="w-full p-2 border rounded"
@@ -131,21 +108,18 @@ function FlakeDateApp() {
           <input
             type="email"
             name="email2"
-            value={formData.email2}
-            onChange={handleChange}
             placeholder="Their email"
             required
             className="w-full p-2 border rounded"
-            autoComplete="new-password"
           />
           <button type="submit" className="w-full p-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
             Create Event
           </button>
         </form>
-      )}
-
-      {step === 'status' && (
+      ) : (
         <div className="space-y-4">
+          <h2 className="text-xl font-semibold">{eventData.description}</h2>
+          <p>Date: {new Date(eventData.date).toLocaleDateString()}</p>
           <div className="flex justify-between items-center">
             <span>Your flake status:</span>
             {flakeStatus.user1 ? <Check className="text-green-500" /> : <X className="text-red-500" />}
