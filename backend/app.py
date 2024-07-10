@@ -114,17 +114,21 @@ def create_event():
 
 @app.route('/api/events/<token>/status', methods=['GET'])
 def check_status(token):
-    event = Event.query.filter((Event.token1 == token) | (Event.token2 == token)).first()
+    event = Event.query.filter_by(unique_token=token).first()
     if not event:
         return jsonify({'error': 'Event not found'}), 404
     
-    is_user1 = token == event.token1
+    user_email = request.args.get('email')
+    if user_email not in [event.email1, event.email2]:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    is_user1 = user_email == event.email1
+    user_flaked = event.user1_flake if is_user1 else event.user2_flake
+    both_flaked = event.user1_flake and event.user2_flake
     
     return jsonify({
-        'flakeStatus': {
-            'user1': event.user1_flake if is_user1 else event.user2_flake,
-            'user2': event.user2_flake if is_user1 else event.user1_flake
-        },
+        'userFlaked': user_flaked,
+        'bothFlaked': both_flaked,
         'eventDetails': {
             'date': event.date.isoformat(),
             'description': event.description
@@ -133,24 +137,29 @@ def check_status(token):
 
 @app.route('/api/events/<token>/toggle', methods=['POST'])
 def toggle_flake(token):
-    event = Event.query.filter((Event.token1 == token) | (Event.token2 == token)).first()
+    event = Event.query.filter_by(unique_token=token).first()
     if not event:
         return jsonify({'error': 'Event not found'}), 404
     
-    if token == event.token1:
+    data = request.json
+    user_email = data.get('email')
+    
+    if user_email == event.email1:
         event.user1_flake = not event.user1_flake
-        current_user_email = event.email1
+        user_flaked = event.user1_flake
         other_user_email = event.email2
-    elif token == event.token2:
+    elif user_email == event.email2:
         event.user2_flake = not event.user2_flake
-        current_user_email = event.email2
+        user_flaked = event.user2_flake
         other_user_email = event.email1
     else:
         return jsonify({'error': 'Unauthorized'}), 403
     
     db.session.commit()
     
-    if event.user1_flake and event.user2_flake:
+    both_flaked = event.user1_flake and event.user2_flake
+    
+    if both_flaked:
         subject = "FlakeDate Update: Both parties are feeling flakey!"
         message = f"""
         Hello!
@@ -166,27 +175,27 @@ def toggle_flake(token):
         """
         send_email(event.email1, subject, message)
         send_email(event.email2, subject, message)
-    else:
-        subject = "FlakeDate Update: Flake status changed"
-        message = f"""
-        Hello!
+    elif user_flaked:
+        # Only send an email to the other user if they haven't flaked
+        if (user_email == event.email1 and not event.user2_flake) or (user_email == event.email2 and not event.user1_flake):
+            subject = "FlakeDate Update: Status changed"
+            message = f"""
+            Hello!
 
-        The flake status for your event on {event.date.strftime('%B %d, %Y')} has been updated.
+            The status for your event on {event.date.strftime('%B %d, %Y')} has been updated.
 
-        Event description: {event.description}
+            Event description: {event.description}
 
-        You can check the current status by visiting your event page.
+            You can check the current status by visiting your event page.
 
-        Best regards,
-        The FlakeDate Team
-        """
-        send_email(other_user_email, subject, message)
+            Best regards,
+            The FlakeDate Team
+            """
+            send_email(other_user_email, subject, message)
     
     return jsonify({
-        'flakeStatus': {
-            'user1': event.user1_flake,
-            'user2': event.user2_flake
-        }
+        'userFlaked': user_flaked,
+        'bothFlaked': both_flaked
     })
 
 if __name__ == '__main__':
