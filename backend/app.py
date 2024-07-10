@@ -106,7 +106,7 @@ def create_event():
 
         return jsonify({
             'eventId': new_event.id,
-            'userToken': token1  # Return the token for the creator
+            'eventToken': token1  # Changed from 'userToken' to 'eventToken'
         }), 201
     except IntegrityError:
         db.session.rollback()
