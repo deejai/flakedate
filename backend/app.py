@@ -101,7 +101,6 @@ def create_event():
             send_email(email, subject, message)
 
         return jsonify({
-            'eventId': new_event.id,
             'eventToken': unique_token
         }), 201
     except IntegrityError:
@@ -114,16 +113,9 @@ def check_status(token):
     if not event:
         return jsonify({'error': 'Event not found'}), 404
     
-    user_email = request.args.get('email')
-    if user_email not in [event.email1, event.email2]:
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    is_user1 = user_email == event.email1
-    user_flaked = event.user1_flake if is_user1 else event.user2_flake
     both_flaked = event.user1_flake and event.user2_flake
     
     return jsonify({
-        'userFlaked': user_flaked,
         'bothFlaked': both_flaked,
         'eventDetails': {
             'date': event.date.isoformat(),
@@ -172,25 +164,22 @@ def toggle_flake(token):
         send_email(event.email1, subject, message)
         send_email(event.email2, subject, message)
     elif user_flaked:
-        # Only send an email to the other user if they haven't flaked
-        if (user_email == event.email1 and not event.user2_flake) or (user_email == event.email2 and not event.user1_flake):
-            subject = "FlakeDate Update: Status changed"
-            message = f"""
-            Hello!
+        subject = "FlakeDate Update: Status changed"
+        message = f"""
+        Hello!
 
-            The status for your event on {event.date.strftime('%B %d, %Y')} has been updated.
+        The status for your event on {event.date.strftime('%B %d, %Y')} has been updated.
 
-            Event description: {event.description}
+        Event description: {event.description}
 
-            You can check the current status by visiting your event page.
+        You can check the current status by visiting your event page.
 
-            Best regards,
-            The FlakeDate Team
-            """
-            send_email(other_user_email, subject, message)
+        Best regards,
+        The FlakeDate Team
+        """
+        send_email(other_user_email, subject, message)
     
     return jsonify({
-        'userFlaked': user_flaked,
         'bothFlaked': both_flaked
     })
 
