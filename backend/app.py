@@ -25,8 +25,7 @@ class Event(db.Model):
     description = db.Column(db.String(500), nullable=False)
     email1 = db.Column(db.String(120), nullable=False)
     email2 = db.Column(db.String(120), nullable=False)
-    token1 = db.Column(db.String(64), unique=True, nullable=False)
-    token2 = db.Column(db.String(64), unique=True, nullable=False)
+    unique_token = db.Column(db.String(64), unique=True, nullable=False)
     user1_flake = db.Column(db.Boolean, default=False)
     user2_flake = db.Column(db.Boolean, default=False)
 
@@ -44,7 +43,7 @@ class Event(db.Model):
 def generate_unique_token():
     while True:
         token = secrets.token_urlsafe(48)
-        if not Event.query.filter_by(token1=token).first() and not Event.query.filter_by(token2=token).first():
+        if not Event.query.filter_by(unique_token=token).first():
             return token
 
 def send_email(to_email, subject, message):
@@ -68,24 +67,21 @@ def send_email(to_email, subject, message):
 def create_event():
     data = request.json
     try:
-        token1 = generate_unique_token()
-        token2 = generate_unique_token()
+        unique_token = generate_unique_token()
         new_event = Event(
             id=str(uuid.uuid4()),
             date=datetime.strptime(data['date'], '%Y-%m-%d').date(),
             description=data['description'],
             email1=data['email1'],
             email2=data['email2'],
-            token1=token1,
-            token2=token2
+            unique_token=unique_token
         )
         db.session.add(new_event)
         db.session.commit()
 
         # Send emails to both participants
         base_url = request.host_url.rstrip('/')
-        for i, email in enumerate([new_event.email1, new_event.email2], start=1):
-            token = getattr(new_event, f'token{i}')
+        for email in [new_event.email1, new_event.email2]:
             subject = "You've been invited to a FlakeDate event!"
             message = f"""
             Hello!
@@ -95,9 +91,9 @@ def create_event():
             Event description: {new_event.description}
 
             To view and manage your event, please visit this link:
-            {base_url}/event/{token}
+            {base_url}/event/{unique_token}
 
-            Remember, this link is secret and unique to you. Don't share it with anyone else!
+            Remember, this link is shared between both participants. Don't share it with anyone else!
 
             Best regards,
             The FlakeDate Team
@@ -106,7 +102,7 @@ def create_event():
 
         return jsonify({
             'eventId': new_event.id,
-            'eventToken': token1  # Changed from 'userToken' to 'eventToken'
+            'eventToken': unique_token
         }), 201
     except IntegrityError:
         db.session.rollback()
