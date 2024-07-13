@@ -38,8 +38,21 @@ def generate_unique_token():
             return token
 
 def send_email(to_email, subject, message):
-    # Email sending logic remains the same
-    pass
+    from_email = 'noreply@flakedate.com'
+    msg = MIMEText(message)
+    msg['Subject'] = subject
+    msg['From'] = formataddr(("FlakeDate", from_email))
+    msg['To'] = to_email
+    msg['Message-ID'] = make_msgid()
+
+    try:
+        with smtplib.SMTP('localhost') as server:
+            server.send_message(msg)
+        print(f"Email sent successfully to {to_email}")
+        return True
+    except Exception as e:
+        print(f"Error sending email to {to_email}: {e}")
+        return False
 
 @app.route('/api/events', methods=['POST'])
 def create_event():
